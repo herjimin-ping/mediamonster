@@ -651,7 +651,7 @@ def play_monster(monster_id: str):
     elif monster_id == "deepfake":
         with st.expander("📊 실제 데이터로 보는 딥페이크 위협", expanded=True):
             render_deepfake_data()
-        with st.expander("🕵️ 실전 연습: 진짜 얼굴 vs AI 얼굴 구별하기", expanded=False):
+        with st.expander("🕵️ 실전 연습: 진짜 얼굴 vs AI 얼굴 구별하기", expanded=True):
             render_which_face_is_real()
         run_quiz(monster_id, DEEPFAKE_ROUNDS, ["AI 그림", "실제 사진"])
     elif monster_id == "ad":
