@@ -1,3 +1,4 @@
+
 """
 Monster Insight — AI 미디어 몬스터 헌터
 '팩트수색대'를 게임형으로 확장한 미디어 리터러시 대시보드입니다.
@@ -68,7 +69,15 @@ st.markdown(
             linear-gradient(180deg, #04070f 0%, #0a0f24 45%, #120a2e 100%);
         background-attachment: fixed;
     }
-    h1, h2, h3 { color: #eaf6ff; }
+    h1, h2, h3, h4, h5, h6 { color: #eaf6ff !important; }
+
+    /* 카드/패널 밖의 기본 텍스트(설명, 캡션, 라벨 등)는 전부 밝은 색으로 */
+    .stMarkdown p, .stMarkdown li, .stMarkdown span,
+    [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p,
+    .stTextInput label, .stTextArea label, .stRadio label, .stCheckbox label,
+    .stSelectbox label, label {
+        color: #eaf6ff;
+    }
 
     .cyber-title {
         font-family: 'Orbitron', sans-serif; font-weight: 900; color: #ffffff;
@@ -93,6 +102,10 @@ st.markdown(
     div[class*="st-key-panel-"] label, div[class*="st-key-panel-"] li {
         color: #16233b !important;
     }
+    div[class*="st-key-panel-"] [data-testid="stCaptionContainer"],
+    div[class*="st-key-panel-"] [data-testid="stCaptionContainer"] p {
+        color: #4a5a72 !important;
+    }
 
     /* 몬스터 카드: 밝은(흰색 계열) 배경 + 짙은 남색 글자 = 고대비 */
     .monster-card {
@@ -103,7 +116,7 @@ st.markdown(
         box-shadow: 0 0 22px rgba(167,139,250,0.35);
         padding: 22px 16px;
         text-align: center;
-        background: linear-gradient(160deg, #ffffff 0%, #f1e9ff 60%, #e6f4ff 100%);
+        background: #ffffff;
     }
     .monster-emoji { font-size: 54px; line-height: 1; }
     .monster-image {
@@ -131,11 +144,11 @@ st.markdown(
         isolation: isolate;
         border-radius: 14px; padding: 16px 10px; text-align:center;
         border: 2px solid #5eead4;
-        background: linear-gradient(160deg, #ffffff 0%, #e8fff9 100%);
+        background: #ffffff;
         color:#16233b;
     }
     .dex-card.locked {
-        background: linear-gradient(160deg, #eef1f6 0%, #dfe4ec 100%);
+        background: #e7ebf1;
         color:#3d4a5c;
         border: 2px dashed #94a3b8;
     }
@@ -1011,20 +1024,33 @@ def main():
             st.rerun()
 
         st.caption("몬스터 바로가기")
+        nav_css_rules = []
         for mid, m in MONSTERS.items():
-            icon_col, btn_col = st.columns([1, 4])
-            with icon_col:
-                try:
-                    st.markdown(
-                        f'<img class="sidebar-nav-icon" src="data:image/png;base64,{img_b64(m["image"])}">',
-                        unsafe_allow_html=True,
-                    )
-                except Exception:
-                    st.markdown(f"<div style='text-align:center;font-size:20px;'>{m['emoji']}</div>", unsafe_allow_html=True)
-            with btn_col:
-                if st.button(m["name"], key=f"nav-{mid}", use_container_width=True):
-                    goto("playing", mid)
-                    st.rerun()
+            try:
+                b64 = img_b64(m["image"])
+                nav_css_rules.append(
+                    f"""
+                    div[class*="st-key-nav-{mid}"] button {{
+                        background-image: url('data:image/png;base64,{b64}'),
+                                           linear-gradient(135deg, #1b1440 0%, #341b6b 100%) !important;
+                        background-blend-mode: multiply !important;
+                        background-repeat: no-repeat, no-repeat !important;
+                        background-position: 10px center, 0 0 !important;
+                        background-size: 30px 30px, cover !important;
+                        padding-left: 46px !important;
+                        justify-content: flex-start !important;
+                        text-align: left !important;
+                    }}
+                    """
+                )
+            except Exception:
+                pass
+            if st.button(m["name"], key=f"nav-{mid}", use_container_width=True):
+                goto("playing", mid)
+                st.rerun()
+
+        if nav_css_rules:
+            st.markdown(f"<style>{''.join(nav_css_rules)}</style>", unsafe_allow_html=True)
 
         st.divider()
         if st.button("🏆 탐정 레벨", use_container_width=True):
