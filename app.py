@@ -4,9 +4,7 @@ Monster Insight — AI 미디어 몬스터 헌터
 
 필요한 Secrets (전부 선택 사항 — 없으면 데모 데이터/로컬 저장으로 동작합니다):
   GOOGLE_FACTCHECK_API_KEY   루머 유령 미션에서 실제 팩트체크 검색에 사용
-  SOLAR_API_KEY              AI 환각 몬스터 미션 + 수색대원 AI 질문 답변에 사용 (Upstage Solar)
-  STDICT_API_KEY             각 사건 파일의 표준국어대사전 검색에 사용 (국립국어원)
-  KRDICT_API_KEY             한국어기초사전 검색에 사용 (선택, 있으면 우선 조회)
+  SOLAR_API_KEY              AI 환각 몬스터 미션에서 실제 AI 답변 생성에 사용 (Upstage Solar)
   SUPABASE_URL               학생 플레이 기록을 저장할 Supabase 프로젝트 URL
   SUPABASE_KEY               Supabase anon/service key
 
@@ -14,7 +12,7 @@ Monster Insight — AI 미디어 몬스터 헌터
 """
 
 import random
-import re
+from base64 import b64encode
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -39,10 +37,17 @@ def secret(key: str) -> str:
 
 GOOGLE_FACTCHECK_API_KEY = secret("GOOGLE_FACTCHECK_API_KEY")
 SOLAR_API_KEY = secret("SOLAR_API_KEY")
-STDICT_API_KEY = secret("STDICT_API_KEY")
-KRDICT_API_KEY = secret("KRDICT_API_KEY")
 SUPABASE_URL = secret("SUPABASE_URL").rstrip("/")
 SUPABASE_KEY = secret("SUPABASE_KEY")
+
+
+# ---------------------------------------------------------------------------
+# 이미지 불러오기 (images/ 폴더의 png를 base64로 변환해서 HTML에 삽입)
+# ---------------------------------------------------------------------------
+
+def img_b64(path: str) -> str:
+    with open(path, "rb") as f:
+        return b64encode(f.read()).decode()
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +68,7 @@ st.markdown(
             linear-gradient(180deg, #04070f 0%, #0a0f24 45%, #120a2e 100%);
         background-attachment: fixed;
     }
-    h1, h2, h3, h4, h5, h6 { color: #eaf6ff; }
+    h1, h2, h3 { color: #eaf6ff; }
 
     .cyber-title {
         font-family: 'Orbitron', sans-serif; font-weight: 900; color: #ffffff;
@@ -99,6 +104,16 @@ st.markdown(
         background: radial-gradient(circle at 50% 0%, rgba(167,139,250,0.14), rgba(8,10,24,0.9));
     }
     .monster-emoji { font-size: 54px; line-height: 1; }
+    .monster-image {
+        width: 100px; height: 100px; object-fit: contain;
+        border-radius: 12px; display: block; margin: 0 auto;
+        filter: drop-shadow(0 0 10px rgba(167,139,250,0.45));
+    }
+    .monster-image-sm {
+        width: 72px; height: 72px; object-fit: contain;
+        border-radius: 10px; display: block; margin: 0 auto;
+        filter: drop-shadow(0 0 8px rgba(167,139,250,0.4));
+    }
     .monster-name {
         font-family: 'Orbitron', sans-serif; font-weight: 700; color: #ffffff;
         font-size: 18px; margin: 8px 0 2px; text-shadow: 0 0 8px rgba(167,139,250,0.65);
@@ -116,6 +131,7 @@ st.markdown(
         border: 1px dashed rgba(148,163,184,0.7);
     }
     .dex-emoji { font-size: 40px; }
+    .dex-image { width: 64px; height: 64px; object-fit: contain; display:block; margin:0 auto; }
     .dex-name { font-weight: 700; margin-top: 6px; }
     .dex-stars { color:#f59e0b; letter-spacing:2px; }
 
@@ -148,31 +164,37 @@ st.markdown(
 MONSTERS = {
     "rumor": dict(
         emoji="👻", name="루머 유령", category="news",
+        image="images/rumor.png",
         intro="근거 없는 소문을 퍼뜨리며 사람들을 혼란에 빠뜨린다. 출처와 날짜를 확인하면 정체가 드러난다.",
         weakness=["출처 확인", "다른 기사와 비교", "날짜 확인"], xp=20,
     ),
     "deepfake": dict(
         emoji="🤖", name="딥페이크 로봇", category="ai",
+        image="images/deepfake.png",
         intro="진짜와 구별하기 힘든 가짜 이미지를 만들어낸다. 미세한 오류를 찾아내면 정체가 드러난다.",
         xp=20,
     ),
     "ad": dict(
         emoji="🎭", name="광고 변장술사", category="ad",
+        image="images/ad.png",
         intro="광고를 뉴스처럼 꾸며 독자를 속인다. 문장 속의 숨은 신호를 찾아내자.",
         xp=15,
     ),
     "algorithm": dict(
         emoji="🕸", name="알고리즘 거미", category="algorithm",
+        image="images/algorithm.png",
         intro="좋아요를 누를수록 점점 더 촘촘한 거미줄(추천 알고리즘)에 가두려 한다.",
         xp=15,
     ),
     "phishing": dict(
         emoji="📦", name="피싱 박스", category="phishing",
+        image="images/phishing.png",
         intro="그럴듯한 메시지로 개인정보나 돈을 빼내려 한다. 수상한 신호를 찾아내자.",
         xp=20,
     ),
     "hallucination": dict(
         emoji="🧠", name="AI 환각 몬스터", category="ai",
+        image="images/hallucination.png",
         intro="AI가 그럴듯하지만 틀린 답을 지어낸다. 근거를 찾아 검증해야 진짜 정체가 드러난다.",
         xp=25,
     ),
@@ -186,6 +208,16 @@ CATEGORY_LABEL = {
     "algorithm": "알고리즘 이해력",
     "phishing": "피싱 대응력",
 }
+
+
+def monster_image_tag(monster_id: str, css_class: str = "monster-image") -> str:
+    """몬스터 이미지를 base64 <img> 태그로 반환. 파일이 없으면 이모지로 대체."""
+    m = MONSTERS[monster_id]
+    try:
+        return f'<img class="{css_class}" src="data:image/png;base64,{img_b64(m["image"])}">'
+    except Exception:
+        return f'<div class="monster-emoji">{m["emoji"]}</div>'
+
 
 # ---------------------------------------------------------------------------
 # 퀴즈용 예시 데이터 (실제 이미지 대신 텍스트 단서로 구성한 클래스룸용 데모)
@@ -293,76 +325,6 @@ def solar_chat(message: str) -> str:
         return r.json()["choices"][0]["message"]["content"]
     except Exception as e:
         return f"오류가 발생했어요: {e}"
-
-
-def solar_helper_chat(message: str) -> str:
-    """모든 사건 파일에서 쓰는 '수색대원에게 물어보기' — 정직하게 돕는 버전 (환각 몬스터 전용 프롬프트와 다름)."""
-    if not SOLAR_API_KEY:
-        return "Solar API 키가 없어 데모 모드예요. Secrets에 SOLAR_API_KEY를 추가하면 실제 AI 답변을 받을 수 있어요."
-    try:
-        r = requests.post(
-            "https://api.upstage.ai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {SOLAR_API_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": "solar-pro2",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "너는 'Monster Insight' 웹사이트의 수색대원이다. 미디어 리터러시 수업을 듣는 "
-                            "청소년(중·고등학생)에게 뉴스에 나오는 낯선 용어나 시사 개념을 설명해준다. "
-                            "어려운 한자어·전문용어는 쉬운 말로 풀어 설명하고, 필요하면 짧은 예시를 든다. "
-                            "답변은 3~5문장 이내로 짧고 친근하게, 반말은 쓰지 않되 딱딱하지 않은 존댓말로 한다."
-                        ),
-                    },
-                    {"role": "user", "content": message},
-                ],
-            },
-            timeout=20,
-        )
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"오류가 발생했어요: {e}"
-
-
-def _parse_dict_xml(xml_text: str, source_name: str):
-    results = []
-    for block in xml_text.split("<item>")[1:]:
-        block = block.split("</item>")[0]
-        w_match = re.search(r"<word>(.*?)</word>", block, re.S)
-        d_match = re.search(r"<definition>(.*?)</definition>", block, re.S)
-        if d_match:
-            w = w_match.group(1).strip() if w_match else ""
-            d = re.sub("<[^>]+>", "", d_match.group(1)).strip()
-            results.append({"word": w, "source": source_name, "definition": d})
-    return results
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_dict(word: str):
-    entries = []
-    if KRDICT_API_KEY:
-        try:
-            r = requests.get(
-                "https://krdict.korean.go.kr/api/search",
-                params={"key": KRDICT_API_KEY, "q": word, "part": "word", "method": "exact"},
-                timeout=10,
-            )
-            entries = _parse_dict_xml(r.text, "한국어기초사전")
-        except Exception:
-            pass
-    if not entries and STDICT_API_KEY:
-        try:
-            r = requests.get(
-                "https://stdict.korean.go.kr/api/search.do",
-                params={"key": STDICT_API_KEY, "q": word},
-                timeout=10,
-            )
-            entries = _parse_dict_xml(r.text, "표준국어대사전")
-        except Exception:
-            pass
-    return entries
 
 
 def supabase_enabled() -> bool:
@@ -706,45 +668,12 @@ def play_hallucination(monster_id: str):
                     st.rerun()
 
 
-def render_dictionary_lookup(monster_id: str):
-    st.markdown("**📖 표준국어대사전 찾아보기**")
-    st.caption("뉴스나 미션에 나온 낯선 단어를 국립국어원 사전에서 검색해보세요.")
-    word = st.text_input("단어 입력", key=f"dict_word_{monster_id}", placeholder="예: 필리버스터, 유예")
-    if st.button("사전 검색", key=f"dict_search_{monster_id}"):
-        q = word.strip()
-        st.session_state[f"dict_query_{monster_id}"] = q
-        st.session_state[f"dict_result_{monster_id}"] = fetch_dict(q) if q else []
-
-    query = st.session_state.get(f"dict_query_{monster_id}")
-    entries = st.session_state.get(f"dict_result_{monster_id}")
-    if entries:
-        for e in entries[:5]:
-            st.markdown(f"**{e['word']}** · _{e['source']}_")
-            st.write(e["definition"])
-    elif query is not None:
-        if not (STDICT_API_KEY or KRDICT_API_KEY):
-            st.caption("Secrets에 STDICT_API_KEY(표준국어대사전)가 없어 데모 모드예요. 등록하면 실제 사전 검색이 가능해요.")
-        elif query:
-            st.caption(f'"{query}"에 대한 뜻풀이를 찾지 못했어요. 다른 표현으로 검색해보세요.')
-
-
-def render_ask_squad(monster_id: str):
-    st.markdown("**💬 수색대원에게 물어보기 (AI)**")
-    st.caption("궁금한 용어나 개념을 물어보면 AI 수색대원이 쉽게 설명해줘요.")
-    q = st.text_input("질문 입력", key=f"ask_q_{monster_id}", placeholder="예: 팩트체크가 정확히 뭐예요?")
-    if st.button("질문하기", key=f"ask_btn_{monster_id}"):
-        st.session_state[f"ask_a_{monster_id}"] = solar_helper_chat(q.strip()) if q.strip() else ""
-    answer = st.session_state.get(f"ask_a_{monster_id}")
-    if answer:
-        st.info(answer)
-
-
 def play_monster(monster_id: str):
     m = MONSTERS[monster_id]
     st.markdown(
         f"""
         <div class="monster-card">
-            <div class="monster-emoji">{m['emoji']}</div>
+            {monster_image_tag(monster_id)}
             <div class="monster-name">{m['name']} 등장!!</div>
             <div class="monster-cat">{CATEGORY_LABEL[m['category']]}</div>
             <div class="monster-intro">{m['intro']}</div>
@@ -752,12 +681,6 @@ def play_monster(monster_id: str):
         """,
         unsafe_allow_html=True,
     )
-    st.write("")
-
-    with st.expander("📖 표준국어대사전 찾아보기", expanded=False):
-        render_dictionary_lookup(monster_id)
-    with st.expander("💬 수색대원에게 물어보기 (AI)", expanded=False):
-        render_ask_squad(monster_id)
     st.write("")
 
     if monster_id == "rumor":
@@ -807,7 +730,7 @@ def page_home():
             st.markdown(
                 f"""
                 <div class="monster-card" style="cursor:pointer;">
-                    <div class="monster-emoji">{m['emoji']}</div>
+                    {monster_image_tag(mid, "monster-image-sm")}
                     <div class="monster-name">{m['name']}</div>
                     <div class="monster-cat">{CATEGORY_LABEL[m['category']]}</div>
                     <div class="monster-intro">{'포획 완료 ' + stars_html(col['stars']) if col['captured'] else '아직 미포획'}</div>
@@ -860,7 +783,7 @@ def page_dex():
                 st.markdown(
                     f"""
                     <div class="dex-card">
-                        <div class="dex-emoji">{m['emoji']}</div>
+                        {monster_image_tag(mid, "dex-image")}
                         <div class="dex-name">{m['name']}</div>
                         <div class="dex-stars">{stars_html(col_data['stars'])}</div>
                         <div style="font-size:11px;color:#5b6b80;margin-top:4px;">
