@@ -87,7 +87,10 @@ st.markdown(
     div[class*="st-key-panel-"] h1, div[class*="st-key-panel-"] h2,
     div[class*="st-key-panel-"] h3, div[class*="st-key-panel-"] h4,
     div[class*="st-key-panel-"] p, div[class*="st-key-panel-"] span,
-    div[class*="st-key-panel-"] label, div[class*="st-key-panel-"] li {
+    div[class*="st-key-panel-"] label, div[class*="st-key-panel-"] li,
+    div[class*="st-key-panel-"] strong, div[class*="st-key-panel-"] b,
+    div[class*="st-key-panel-"] em, div[class*="st-key-panel-"] a,
+    div[class*="st-key-panel-"] code {
         color: #16233b !important;
     }
 
