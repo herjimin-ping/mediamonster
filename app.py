@@ -4,7 +4,7 @@ Monster Insight — AI 미디어 몬스터 헌터
 
 필요한 Secrets (전부 선택 사항 — 없으면 데모 데이터/로컬 저장으로 동작합니다):
   GOOGLE_FACTCHECK_API_KEY   루머 유령 미션에서 실제 팩트체크 검색에 사용
-  SOLAR_API_KEY              AI 환각 몬스터 미션 + 수색대원 AI 질문 답변에 사용 (Upstage Solar)
+  SOLAR_API_KEY              AI 환각 몬스터 미션 + 수사 요원 AI 질문 답변에 사용 (Upstage Solar)
   STDICT_API_KEY             각 사건 파일의 표준국어대사전 검색에 사용 (국립국어원)
   KRDICT_API_KEY             한국어기초사전 검색에 사용 (선택, 있으면 우선 조회)
   SUPABASE_URL               학생 플레이 기록을 저장할 Supabase 프로젝트 URL
@@ -128,18 +128,29 @@ st.markdown(
     }
     .stButton button:hover { background-color: #8b6cf0 !important; color:#ffffff !important; }
 
-    /* 사이드바 버튼: 오른쪽 몬스터 카드와 같은 톤(어두운 네이비 + 보라 테두리), 흰 글씨, 왼쪽 정렬 */
+    /* '수사 시작' 버튼(홈 화면 몬스터 카드 아래) — 더 진한 보라색 */
+    div[class*="st-key-start-"] button {
+        background-color: #6d3fd6 !important;
+        box-shadow: 0 0 10px rgba(124,58,237,0.55) !important;
+    }
+    div[class*="st-key-start-"] button:hover { background-color: #5c2fc2 !important; }
+
+    /* 사이드바 버튼: 진하고 플랫한 사이버 톤, 그라데이션/광택 없이, 흰 글씨를 더 크게 */
     section[data-testid="stSidebar"] .stButton button {
-        background: radial-gradient(circle at 30% 20%, rgba(167,139,250,0.28), rgba(8,10,24,0.94)) !important;
-        border: 1px solid rgba(167,139,250,0.6) !important;
+        background-color: #12101f !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        border: 1px solid rgba(167,139,250,0.55) !important;
         color: #ffffff !important;
         text-align: left !important;
-        font-size: 15px !important;
-        padding-top: 10px !important;
-        padding-bottom: 10px !important;
+        font-size: 16.5px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.2px;
+        padding-top: 11px !important;
+        padding-bottom: 11px !important;
     }
     section[data-testid="stSidebar"] .stButton button:hover {
-        background: radial-gradient(circle at 30% 20%, rgba(167,139,250,0.42), rgba(8,10,24,0.98)) !important;
+        background-color: #1c1836 !important;
         border-color: rgba(167,139,250,0.9) !important;
     }
 
@@ -171,7 +182,12 @@ st.markdown(
         color:#ffffff; font-size:14.5px; font-weight:700; margin-right:8px;
     }
 
-    /* expander(접이식 섹션) 제목·본문 글자를 어두운 배경에서도 밝게 */
+    /* expander(접이식 섹션) 자체에 어두운 배경을 줘서, 포커스/호버 시에도 글자가 항상 잘 보이게 */
+    [data-testid="stExpander"] {
+        background: rgba(10,12,28,0.92) !important;
+        border: 1px solid rgba(167,139,250,0.35) !important;
+        border-radius: 12px !important;
+    }
     [data-testid="stExpander"] summary,
     [data-testid="stExpander"] summary p,
     [data-testid="stExpander"] summary span,
@@ -179,8 +195,12 @@ st.markdown(
     [data-testid="stExpanderHeader"] p,
     [data-testid="stExpanderHeader"] span {
         color: #eaf6ff !important;
+        background: transparent !important;
     }
     [data-testid="stExpander"] svg { fill: #eaf6ff !important; }
+    [data-testid="stExpanderDetails"] {
+        background: transparent !important;
+    }
     [data-testid="stExpanderDetails"] p,
     [data-testid="stExpanderDetails"] span,
     [data-testid="stExpanderDetails"] li,
@@ -348,7 +368,7 @@ def solar_chat(message: str) -> str:
 
 
 def solar_helper_chat(message: str) -> str:
-    """모든 사건 파일에서 쓰는 '수색대원에게 물어보기' — 정직하게 돕는 버전 (환각 몬스터 전용 프롬프트와 다름)."""
+    """모든 사건 파일에서 쓰는 '수사 요원에게 물어보기' — 정직하게 돕는 버전 (환각 몬스터 전용 프롬프트와 다름)."""
     if not SOLAR_API_KEY:
         return "Solar API 키가 없어 데모 모드예요. Secrets에 SOLAR_API_KEY를 추가하면 실제 AI 답변을 받을 수 있어요."
     try:
@@ -361,7 +381,7 @@ def solar_helper_chat(message: str) -> str:
                     {
                         "role": "system",
                         "content": (
-                            "너는 'Monster Insight' 웹사이트의 수색대원이다. 미디어 리터러시 수업을 듣는 "
+                            "너는 'Monster Insight' 웹사이트의 수사 요원이다. 미디어 리터러시 수업을 듣는 "
                             "청소년(중·고등학생)에게 뉴스에 나오는 낯선 용어나 시사 개념을 설명해준다. "
                             "어려운 한자어·전문용어는 쉬운 말로 풀어 설명하고, 필요하면 짧은 예시를 든다. "
                             "답변은 3~5문장 이내로 짧고 친근하게, 반말은 쓰지 않되 딱딱하지 않은 존댓말로 한다."
@@ -817,8 +837,8 @@ def render_dictionary_lookup(monster_id: str):
 
 
 def render_ask_squad(monster_id: str):
-    st.markdown("**💬 수색대원에게 물어보기 (AI)**")
-    st.caption("궁금한 용어나 개념을 물어보면 AI 수색대원이 쉽게 설명해줘요.")
+    st.markdown("**💬 수사 요원에게 물어보기 (AI)**")
+    st.caption("궁금한 용어나 개념을 물어보면 AI 수사 요원이 쉽게 설명해줘요.")
     q = st.text_input("질문 입력", key=f"ask_q_{monster_id}", placeholder="예: 팩트체크가 정확히 뭐예요?")
     if st.button("질문하기", key=f"ask_btn_{monster_id}"):
         st.session_state[f"ask_a_{monster_id}"] = solar_helper_chat(q.strip()) if q.strip() else ""
@@ -827,7 +847,7 @@ def render_ask_squad(monster_id: str):
         st.info(answer)
 
 
-def play_monster(monster_id: str):
+def render_monster_intro_card(monster_id: str):
     m = MONSTERS[monster_id]
     st.markdown(
         f"""
@@ -840,12 +860,18 @@ def play_monster(monster_id: str):
         """,
         unsafe_allow_html=True,
     )
+
+
+def play_monster(monster_id: str):
     st.write("")
 
-    with st.expander("📖 표준국어대사전 찾아보기", expanded=False):
-        render_dictionary_lookup(monster_id)
-    with st.expander("💬 수색대원에게 물어보기 (AI)", expanded=False):
-        render_ask_squad(monster_id)
+    tool_col1, tool_col2 = st.columns(2)
+    with tool_col1:
+        with st.expander("📖 표준국어대사전 찾아보기", expanded=False):
+            render_dictionary_lookup(monster_id)
+    with tool_col2:
+        with st.expander("💬 수사 요원에게 물어보기 (AI)", expanded=False):
+            render_ask_squad(monster_id)
     st.write("")
 
     if monster_id == "rumor":
@@ -1144,12 +1170,12 @@ def main():
                     ext = os.path.splitext(path)[1].lstrip(".").replace("jpg", "jpeg")
                     icon_css_parts.append(
                         f"""
-                        div[class*="st-key-nav-{mid}"] button {{
+                        section[data-testid="stSidebar"] div[class*="st-key-nav-{mid}"] button {{
                             background-image: url(data:image/{ext};base64,{b64}) !important;
                             background-repeat: no-repeat !important;
-                            background-position: 12px center !important;
-                            background-size: 28px 28px !important;
-                            padding-left: 48px !important;
+                            background-position: 14px center !important;
+                            background-size: 32px 32px !important;
+                            padding-left: 54px !important;
                         }}
                         """
                     )
@@ -1174,35 +1200,54 @@ def main():
             goto("teacher")
             st.rerun()
 
-    st.markdown(
-        """
-        <div>
-            <div class="cyber-title">🧠 Monster Insight</div>
-            <div class="cyber-sub">AI MEDIA MONSTER HUNTER</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown("<div class='cyber-tagline'>미디어 몬스터를 잡고 통찰력을 키워라!</div>", unsafe_allow_html=True)
-    st.write("")
-
     page = ss.page
-    if page == "home":
-        page_home()
-    elif page == "playing":
+
+    if page == "playing":
         mid = ss.current_monster or random.choice(TEAM)
         ss.current_monster = mid
+        head_col, card_col = st.columns([1, 1.4])
+        with head_col:
+            st.markdown(
+                """
+                <div>
+                    <div class="cyber-title">🧠 Monster Insight</div>
+                    <div class="cyber-sub">AI MEDIA MONSTER HUNTER</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<div class='cyber-tagline'>미디어 몬스터를 잡고 통찰력을 키워라!</div>",
+                unsafe_allow_html=True,
+            )
+        with card_col:
+            render_monster_intro_card(mid)
         play_monster(mid)
-    elif page == "level":
-        page_level()
-    elif page == "dex":
-        page_dex()
-    elif page == "report":
-        page_report()
-    elif page == "teacher":
-        page_teacher()
     else:
-        page_home()
+        st.markdown(
+            """
+            <div>
+                <div class="cyber-title">🧠 Monster Insight</div>
+                <div class="cyber-sub">AI MEDIA MONSTER HUNTER</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown("<div class='cyber-tagline'>미디어 몬스터를 잡고 통찰력을 키워라!</div>", unsafe_allow_html=True)
+        st.write("")
+
+        if page == "home":
+            page_home()
+        elif page == "level":
+            page_level()
+        elif page == "dex":
+            page_dex()
+        elif page == "report":
+            page_report()
+        elif page == "teacher":
+            page_teacher()
+        else:
+            page_home()
 
     st.divider()
     st.caption(
