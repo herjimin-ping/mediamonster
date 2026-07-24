@@ -4,7 +4,9 @@ Monster Insight — AI 미디어 몬스터 헌터
 
 필요한 Secrets (전부 선택 사항 — 없으면 데모 데이터/로컬 저장으로 동작합니다):
   GOOGLE_FACTCHECK_API_KEY   루머 유령 미션에서 실제 팩트체크 검색에 사용
-  SOLAR_API_KEY              AI 환각 몬스터 미션에서 실제 AI 답변 생성에 사용 (Upstage Solar)
+  SOLAR_API_KEY              AI 환각 몬스터 미션 + 수색대원 AI 질문 답변에 사용 (Upstage Solar)
+  STDICT_API_KEY             각 사건 파일의 표준국어대사전 검색에 사용 (국립국어원)
+  KRDICT_API_KEY             한국어기초사전 검색에 사용 (선택, 있으면 우선 조회)
   SUPABASE_URL               학생 플레이 기록을 저장할 Supabase 프로젝트 URL
   SUPABASE_KEY               Supabase anon/service key
 
@@ -12,6 +14,7 @@ Monster Insight — AI 미디어 몬스터 헌터
 """
 
 import random
+import re
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -36,6 +39,8 @@ def secret(key: str) -> str:
 
 GOOGLE_FACTCHECK_API_KEY = secret("GOOGLE_FACTCHECK_API_KEY")
 SOLAR_API_KEY = secret("SOLAR_API_KEY")
+STDICT_API_KEY = secret("STDICT_API_KEY")
+KRDICT_API_KEY = secret("KRDICT_API_KEY")
 SUPABASE_URL = secret("SUPABASE_URL").rstrip("/")
 SUPABASE_KEY = secret("SUPABASE_KEY")
 
@@ -58,7 +63,7 @@ st.markdown(
             linear-gradient(180deg, #04070f 0%, #0a0f24 45%, #120a2e 100%);
         background-attachment: fixed;
     }
-    h1, h2, h3 { color: #eaf6ff; }
+    h1, h2, h3, h4, h5, h6 { color: #eaf6ff; }
 
     .cyber-title {
         font-family: 'Orbitron', sans-serif; font-weight: 900; color: #ffffff;
@@ -288,6 +293,76 @@ def solar_chat(message: str) -> str:
         return r.json()["choices"][0]["message"]["content"]
     except Exception as e:
         return f"오류가 발생했어요: {e}"
+
+
+def solar_helper_chat(message: str) -> str:
+    """모든 사건 파일에서 쓰는 '수색대원에게 물어보기' — 정직하게 돕는 버전 (환각 몬스터 전용 프롬프트와 다름)."""
+    if not SOLAR_API_KEY:
+        return "Solar API 키가 없어 데모 모드예요. Secrets에 SOLAR_API_KEY를 추가하면 실제 AI 답변을 받을 수 있어요."
+    try:
+        r = requests.post(
+            "https://api.upstage.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {SOLAR_API_KEY}", "Content-Type": "application/json"},
+            json={
+                "model": "solar-pro2",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "너는 'Monster Insight' 웹사이트의 수색대원이다. 미디어 리터러시 수업을 듣는 "
+                            "청소년(중·고등학생)에게 뉴스에 나오는 낯선 용어나 시사 개념을 설명해준다. "
+                            "어려운 한자어·전문용어는 쉬운 말로 풀어 설명하고, 필요하면 짧은 예시를 든다. "
+                            "답변은 3~5문장 이내로 짧고 친근하게, 반말은 쓰지 않되 딱딱하지 않은 존댓말로 한다."
+                        ),
+                    },
+                    {"role": "user", "content": message},
+                ],
+            },
+            timeout=20,
+        )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"오류가 발생했어요: {e}"
+
+
+def _parse_dict_xml(xml_text: str, source_name: str):
+    results = []
+    for block in xml_text.split("<item>")[1:]:
+        block = block.split("</item>")[0]
+        w_match = re.search(r"<word>(.*?)</word>", block, re.S)
+        d_match = re.search(r"<definition>(.*?)</definition>", block, re.S)
+        if d_match:
+            w = w_match.group(1).strip() if w_match else ""
+            d = re.sub("<[^>]+>", "", d_match.group(1)).strip()
+            results.append({"word": w, "source": source_name, "definition": d})
+    return results
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_dict(word: str):
+    entries = []
+    if KRDICT_API_KEY:
+        try:
+            r = requests.get(
+                "https://krdict.korean.go.kr/api/search",
+                params={"key": KRDICT_API_KEY, "q": word, "part": "word", "method": "exact"},
+                timeout=10,
+            )
+            entries = _parse_dict_xml(r.text, "한국어기초사전")
+        except Exception:
+            pass
+    if not entries and STDICT_API_KEY:
+        try:
+            r = requests.get(
+                "https://stdict.korean.go.kr/api/search.do",
+                params={"key": STDICT_API_KEY, "q": word},
+                timeout=10,
+            )
+            entries = _parse_dict_xml(r.text, "표준국어대사전")
+        except Exception:
+            pass
+    return entries
 
 
 def supabase_enabled() -> bool:
@@ -631,6 +706,39 @@ def play_hallucination(monster_id: str):
                     st.rerun()
 
 
+def render_dictionary_lookup(monster_id: str):
+    st.markdown("**📖 표준국어대사전 찾아보기**")
+    st.caption("뉴스나 미션에 나온 낯선 단어를 국립국어원 사전에서 검색해보세요.")
+    word = st.text_input("단어 입력", key=f"dict_word_{monster_id}", placeholder="예: 필리버스터, 유예")
+    if st.button("사전 검색", key=f"dict_search_{monster_id}"):
+        q = word.strip()
+        st.session_state[f"dict_query_{monster_id}"] = q
+        st.session_state[f"dict_result_{monster_id}"] = fetch_dict(q) if q else []
+
+    query = st.session_state.get(f"dict_query_{monster_id}")
+    entries = st.session_state.get(f"dict_result_{monster_id}")
+    if entries:
+        for e in entries[:5]:
+            st.markdown(f"**{e['word']}** · _{e['source']}_")
+            st.write(e["definition"])
+    elif query is not None:
+        if not (STDICT_API_KEY or KRDICT_API_KEY):
+            st.caption("Secrets에 STDICT_API_KEY(표준국어대사전)가 없어 데모 모드예요. 등록하면 실제 사전 검색이 가능해요.")
+        elif query:
+            st.caption(f'"{query}"에 대한 뜻풀이를 찾지 못했어요. 다른 표현으로 검색해보세요.')
+
+
+def render_ask_squad(monster_id: str):
+    st.markdown("**💬 수색대원에게 물어보기 (AI)**")
+    st.caption("궁금한 용어나 개념을 물어보면 AI 수색대원이 쉽게 설명해줘요.")
+    q = st.text_input("질문 입력", key=f"ask_q_{monster_id}", placeholder="예: 팩트체크가 정확히 뭐예요?")
+    if st.button("질문하기", key=f"ask_btn_{monster_id}"):
+        st.session_state[f"ask_a_{monster_id}"] = solar_helper_chat(q.strip()) if q.strip() else ""
+    answer = st.session_state.get(f"ask_a_{monster_id}")
+    if answer:
+        st.info(answer)
+
+
 def play_monster(monster_id: str):
     m = MONSTERS[monster_id]
     st.markdown(
@@ -644,6 +752,12 @@ def play_monster(monster_id: str):
         """,
         unsafe_allow_html=True,
     )
+    st.write("")
+
+    with st.expander("📖 표준국어대사전 찾아보기", expanded=False):
+        render_dictionary_lookup(monster_id)
+    with st.expander("💬 수색대원에게 물어보기 (AI)", expanded=False):
+        render_ask_squad(monster_id)
     st.write("")
 
     if monster_id == "rumor":
