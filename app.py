@@ -94,52 +94,96 @@ st.markdown(
         color: #16233b !important;
     }
 
+    /* 몬스터 카드: 밝은(흰색 계열) 배경 + 짙은 남색 글자 = 고대비 */
     .monster-card {
         position: relative;
-        border: 1px solid rgba(167,139,250,0.55);
+        isolation: isolate;
+        border: 2px solid #a78bfa;
         border-radius: 16px;
-        box-shadow: 0 0 22px rgba(167,139,250,0.28);
+        box-shadow: 0 0 22px rgba(167,139,250,0.35);
         padding: 22px 16px;
         text-align: center;
-        background: radial-gradient(circle at 50% 0%, rgba(167,139,250,0.14), rgba(8,10,24,0.9));
+        background: linear-gradient(160deg, #ffffff 0%, #f1e9ff 60%, #e6f4ff 100%);
     }
     .monster-emoji { font-size: 54px; line-height: 1; }
     .monster-image {
         width: 100px; height: 100px; object-fit: contain;
-        border-radius: 12px; display: block; margin: 0 auto;
-        filter: drop-shadow(0 0 10px rgba(167,139,250,0.45));
+        display: block; margin: 0 auto;
+        mix-blend-mode: multiply;
     }
     .monster-image-sm {
         width: 72px; height: 72px; object-fit: contain;
-        border-radius: 10px; display: block; margin: 0 auto;
-        filter: drop-shadow(0 0 8px rgba(167,139,250,0.4));
+        display: block; margin: 0 auto;
+        mix-blend-mode: multiply;
     }
     .monster-name {
-        font-family: 'Orbitron', sans-serif; font-weight: 700; color: #ffffff;
-        font-size: 18px; margin: 8px 0 2px; text-shadow: 0 0 8px rgba(167,139,250,0.65);
+        font-family: 'Orbitron', sans-serif; font-weight: 700; color: #2a1a55;
+        font-size: 18px; margin: 8px 0 2px;
     }
-    .monster-cat { font-size: 11px; color:#9fd6f5; letter-spacing: 1px; }
-    .monster-intro { font-size: 13px; color:#d7e6ff; margin-top:10px; line-height:1.5; }
+    .monster-cat {
+        font-size: 11px; color:#6d3fc0; letter-spacing: 1px; font-weight: 700;
+    }
+    .monster-intro { font-size: 13px; color:#3a2a5c; margin-top:10px; line-height:1.5; }
 
+    /* 몬스터 도감(Dex) 카드: 포획한 몬스터는 밝은 색상 카드, 미포획은 회색 톤이지만 글자는 뚜렷하게 */
     .dex-card {
+        position: relative;
+        isolation: isolate;
         border-radius: 14px; padding: 16px 10px; text-align:center;
-        border: 1px solid rgba(94,234,212,0.45);
-        background: rgba(255,255,255,0.95); color:#16233b;
+        border: 2px solid #5eead4;
+        background: linear-gradient(160deg, #ffffff 0%, #e8fff9 100%);
+        color:#16233b;
     }
     .dex-card.locked {
-        background: rgba(255,255,255,0.55); color:#7c8aa0;
-        border: 1px dashed rgba(148,163,184,0.7);
+        background: linear-gradient(160deg, #eef1f6 0%, #dfe4ec 100%);
+        color:#3d4a5c;
+        border: 2px dashed #94a3b8;
     }
     .dex-emoji { font-size: 40px; }
-    .dex-image { width: 64px; height: 64px; object-fit: contain; display:block; margin:0 auto; }
-    .dex-name { font-weight: 700; margin-top: 6px; }
-    .dex-stars { color:#f59e0b; letter-spacing:2px; }
+    .dex-image { width: 64px; height: 64px; object-fit: contain; display:block; margin:0 auto; mix-blend-mode: multiply; }
+    .dex-name { font-weight: 700; margin-top: 6px; color:#16233b; }
+    .dex-card.locked .dex-name { color:#3d4a5c; }
+    .dex-stars { color:#d97706; letter-spacing:2px; font-weight:700; }
 
+    /* 기본(메인 영역) 버튼 - 밝은 보라 + 흰 글자 */
     .stButton button {
-        background-color: #a78bfa !important; color: #ffffff !important;
+        background-color: #7c3aed !important; color: #ffffff !important;
         border: none !important; border-radius: 8px !important; font-weight: 700 !important;
     }
-    .stButton button:hover { background-color: #8b6cf0 !important; color:#ffffff !important; }
+    .stButton button:hover { background-color: #6d28d9 !important; color:#ffffff !important; }
+
+    /* 사이드바 버튼 - 사이버보그 스타일: 진한 남색/보라 배경 + 네온 테두리 + 흰색 Orbitron 글자 */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0b0f24 0%, #150a2e 100%);
+        border-right: 1px solid rgba(167,139,250,0.35);
+        isolation: isolate;
+    }
+    section[data-testid="stSidebar"] * { color: #eaf6ff !important; }
+    section[data-testid="stSidebar"] .stButton button {
+        background: linear-gradient(135deg, #1b1440 0%, #341b6b 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(94,234,212,0.55) !important;
+        border-radius: 10px !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.5px;
+        text-shadow: 0 0 8px rgba(94,234,212,0.6);
+        box-shadow: 0 0 14px rgba(167,139,250,0.35);
+        transition: all 0.15s ease-in-out;
+    }
+    section[data-testid="stSidebar"] .stButton button:hover {
+        background: linear-gradient(135deg, #341b6b 0%, #4c2596 100%) !important;
+        border-color: #5eead4 !important;
+        box-shadow: 0 0 20px rgba(94,234,212,0.55);
+    }
+    section[data-testid="stSidebar"] .stTextInput input {
+        background-color: #12163a !important; color: #eaf6ff !important;
+        border: 1px solid rgba(167,139,250,0.5) !important;
+    }
+    .sidebar-nav-icon {
+        width: 34px; height: 34px; object-fit: contain; display:block;
+        margin: 0 auto; border-radius: 6px;
+    }
 
     .stTextInput input, .stTextArea textarea {
         background-color: #ffffff !important; color: #16233b !important;
@@ -149,8 +193,9 @@ st.markdown(
 
     .xp-badge {
         display:inline-block; padding:4px 12px; border-radius:999px;
-        background: rgba(167,139,250,0.18); border:1px solid rgba(167,139,250,0.5);
-        color:#e9defe; font-size:13px; font-weight:700; margin-right:8px;
+        background: rgba(167,139,250,0.22); border:1px solid rgba(167,139,250,0.6);
+        color:#ffffff !important; font-size:13px; font-weight:700; margin-right:8px;
+        text-shadow: 0 0 6px rgba(167,139,250,0.6);
     }
     </style>
     """,
@@ -967,9 +1012,19 @@ def main():
 
         st.caption("몬스터 바로가기")
         for mid, m in MONSTERS.items():
-            if st.button(f"{m['emoji']} {m['name']}", key=f"nav-{mid}", use_container_width=True):
-                goto("playing", mid)
-                st.rerun()
+            icon_col, btn_col = st.columns([1, 4])
+            with icon_col:
+                try:
+                    st.markdown(
+                        f'<img class="sidebar-nav-icon" src="data:image/png;base64,{img_b64(m["image"])}">',
+                        unsafe_allow_html=True,
+                    )
+                except Exception:
+                    st.markdown(f"<div style='text-align:center;font-size:20px;'>{m['emoji']}</div>", unsafe_allow_html=True)
+            with btn_col:
+                if st.button(m["name"], key=f"nav-{mid}", use_container_width=True):
+                    goto("playing", mid)
+                    st.rerun()
 
         st.divider()
         if st.button("🏆 탐정 레벨", use_container_width=True):
