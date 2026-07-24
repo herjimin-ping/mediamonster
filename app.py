@@ -100,13 +100,13 @@ st.markdown(
         text-align: center;
         background: radial-gradient(circle at 50% 0%, rgba(167,139,250,0.14), rgba(8,10,24,0.9));
     }
-    .monster-emoji { font-size: 54px; line-height: 1; }
+    .monster-emoji { font-size: 58px; line-height: 1; }
     .monster-name {
         font-family: 'Orbitron', sans-serif; font-weight: 700; color: #ffffff;
-        font-size: 18px; margin: 8px 0 2px; text-shadow: 0 0 8px rgba(167,139,250,0.65);
+        font-size: 20px; margin: 8px 0 2px; text-shadow: 0 0 8px rgba(167,139,250,0.65);
     }
-    .monster-cat { font-size: 11px; color:#9fd6f5; letter-spacing: 1px; }
-    .monster-intro { font-size: 13px; color:#d7e6ff; margin-top:10px; line-height:1.5; }
+    .monster-cat { font-size: 12.5px; color:#9fd6f5; letter-spacing: 1px; }
+    .monster-intro { font-size: 14.5px; color:#d7e6ff; margin-top:10px; line-height:1.55; }
 
     .dex-card {
         border-radius: 14px; padding: 16px 10px; text-align:center;
@@ -124,8 +124,40 @@ st.markdown(
     .stButton button {
         background-color: #a78bfa !important; color: #ffffff !important;
         border: none !important; border-radius: 8px !important; font-weight: 700 !important;
+        font-size: 15px !important;
     }
     .stButton button:hover { background-color: #8b6cf0 !important; color:#ffffff !important; }
+
+    /* 사이드바 버튼: 오른쪽 몬스터 카드와 같은 톤(어두운 네이비 + 보라 테두리), 흰 글씨, 왼쪽 정렬 */
+    section[data-testid="stSidebar"] .stButton button {
+        background: radial-gradient(circle at 30% 20%, rgba(167,139,250,0.28), rgba(8,10,24,0.94)) !important;
+        border: 1px solid rgba(167,139,250,0.6) !important;
+        color: #ffffff !important;
+        text-align: left !important;
+        font-size: 15px !important;
+        padding-top: 10px !important;
+        padding-bottom: 10px !important;
+    }
+    section[data-testid="stSidebar"] .stButton button:hover {
+        background: radial-gradient(circle at 30% 20%, rgba(167,139,250,0.42), rgba(8,10,24,0.98)) !important;
+        border-color: rgba(167,139,250,0.9) !important;
+    }
+
+    /* 기본 Streamlit 텍스트(캡션·라벨·본문 등)를 어두운 배경에서도 밝게 — 흰 배경 패널(panel-)은 !important로 이미 보호됨 */
+    [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMarkdownContainer"] li,
+    [data-testid="stMarkdownContainer"] span,
+    [data-testid="stMarkdownContainer"] strong,
+    [data-testid="stCaptionContainer"] p,
+    [data-testid="stCaptionContainer"] span,
+    label, .stRadio label, .stCheckbox label {
+        color: #eaf6ff;
+    }
+
+    /* 전체 기본 글자 크기를 살짝 키움 */
+    [data-testid="stAppViewContainer"] { font-size: 17px; }
+    .cyber-sub { font-size: 0.95rem; }
+    .cyber-tagline { font-size: 1.05rem; }
 
     .stTextInput input, .stTextArea textarea {
         background-color: #ffffff !important; color: #16233b !important;
@@ -134,9 +166,9 @@ st.markdown(
     .stTextInput input::placeholder { color: #94a3b8 !important; }
 
     .xp-badge {
-        display:inline-block; padding:4px 12px; border-radius:999px;
+        display:inline-block; padding:5px 14px; border-radius:999px;
         background: rgba(167,139,250,0.18); border:1px solid rgba(167,139,250,0.5);
-        color:#e9defe; font-size:13px; font-weight:700; margin-right:8px;
+        color:#ffffff; font-size:14.5px; font-weight:700; margin-right:8px;
     }
 
     /* expander(접이식 섹션) 제목·본문 글자를 어두운 배경에서도 밝게 */
@@ -1099,10 +1131,32 @@ def main():
             st.rerun()
 
         st.caption("몬스터 바로가기")
+        icon_css_parts = []
         for mid, m in MONSTERS.items():
-            if st.button(f"{m['emoji']} {m['name']}", key=f"nav-{mid}", use_container_width=True):
+            path = _find_monster_image_path(mid)
+            label = m["name"] if path else f"{m['emoji']} {m['name']}"
+            if st.button(label, key=f"nav-{mid}", use_container_width=True):
                 goto("playing", mid)
                 st.rerun()
+            if path:
+                try:
+                    b64 = _img_b64(path, os.path.getmtime(path))
+                    ext = os.path.splitext(path)[1].lstrip(".").replace("jpg", "jpeg")
+                    icon_css_parts.append(
+                        f"""
+                        div[class*="st-key-nav-{mid}"] button {{
+                            background-image: url(data:image/{ext};base64,{b64}) !important;
+                            background-repeat: no-repeat !important;
+                            background-position: 12px center !important;
+                            background-size: 28px 28px !important;
+                            padding-left: 48px !important;
+                        }}
+                        """
+                    )
+                except Exception:
+                    pass
+        if icon_css_parts:
+            st.markdown(f"<style>{''.join(icon_css_parts)}</style>", unsafe_allow_html=True)
 
         st.divider()
         if st.button("🏆 탐정 레벨", use_container_width=True):
