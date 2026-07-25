@@ -8,9 +8,12 @@ Monster Insight — AI 미디어 몬스터 헌터
   STDICT_API_KEY             각 사건 파일의 표준국어대사전 검색에 사용 (국립국어원)
   KRDICT_API_KEY             한국어기초사전 검색에 사용 (선택, 있으면 우선 조회)
   SUPABASE_URL               학생 플레이 기록을 저장할 Supabase 프로젝트 URL
-  SUPABASE_KEY               Supabase anon/service key
+  SUPABASE_ANON_KEY          Supabase anon key ('팩트수색대' 앱과 동일한 프로젝트/키를 사용)
 
 이 파일에는 실제 키 값이 들어있지 않습니다. Streamlit Secrets에 위 이름으로 등록하세요.
+
+입장 방식: 학교급 선택 → 지역/학년/성별 선택 → 비밀코드 입력 → 입장
+(코드/학교 관리는 Supabase의 class_codes 테이블에서, '팩트수색대' 앱과 동일하게 처리합니다)
 """
 
 import os
@@ -44,7 +47,7 @@ SOLAR_API_KEY = secret("SOLAR_API_KEY")
 STDICT_API_KEY = secret("STDICT_API_KEY")
 KRDICT_API_KEY = secret("KRDICT_API_KEY")
 SUPABASE_URL = secret("SUPABASE_URL").rstrip("/")
-SUPABASE_KEY = secret("SUPABASE_KEY")
+SUPABASE_KEY = secret("SUPABASE_ANON_KEY")
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +484,154 @@ def supabase_select(table: str, params: dict | None = None):
     return None
 
 
+def supabase_update(table: str, match_params: dict, patch: dict) -> bool:
+    if not supabase_enabled():
+        return False
+    try:
+        r = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/{table}",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            },
+            params=match_params,
+            json=patch,
+            timeout=10,
+        )
+        return r.ok
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# 🔐 입장 게이트 (학교급 선택 → 지역/학년/성별 → 비밀코드)
+#   - '팩트수색대' 앱과 동일한 Supabase 테이블(class_codes, student_sessions)을 그대로 사용합니다.
+#   - 학교/코드 추가·삭제는 Supabase에서 처리하고, 이 앱의 코드는 수정할 필요가 없습니다.
+# ---------------------------------------------------------------------------
+
+LEVELS = {
+    "초등학교": [f"{n}학년" for n in range(1, 7)],
+    "중학교": [f"{n}학년" for n in range(1, 4)],
+    "고등학교": [f"{n}학년" for n in range(1, 4)],
+}
+
+REGIONS = [
+    "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
+    "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
+]
+
+
+def verify_class_code(level: str, code: str):
+    """class_codes 테이블에서 코드 유효성을 확인한다. 유효하면 (True, row) / 아니면 (False, None)."""
+    code = (code or "").strip()
+    if not code:
+        return False, None
+
+    rows = supabase_select(
+        "class_codes",
+        {
+            "select": "*",
+            "level": f"eq.{level}",
+            "code": f"eq.{code}",
+            "is_active": "eq.true",
+        },
+    )
+    if not rows:
+        return False, None
+
+    row = rows[0]
+
+    expires_at = row.get("expires_at")
+    if expires_at:
+        try:
+            exp = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) > exp:
+                return False, None
+        except ValueError:
+            pass
+
+    max_uses = row.get("max_uses")
+    if max_uses is not None and row.get("use_count", 0) >= max_uses:
+        return False, None
+
+    return True, row
+
+
+def log_student_entry(row: dict, level: str, region: str, grade: str, gender: str):
+    """학생 입장 기록 저장 + 코드 사용횟수 +1 (실패해도 입장은 막지 않음)."""
+    supabase_insert(
+        "student_sessions",
+        {
+            "group_label": row["group_label"],
+            "level": level,
+            "region": region,
+            "grade": grade,
+            "gender": gender,
+            "entered_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+    supabase_update(
+        "class_codes",
+        {"id": f"eq.{row['id']}"},
+        {"use_count": row.get("use_count", 0) + 1},
+    )
+
+
+def entry_gate() -> bool:
+    """학교급 → 지역/학년/성별 → 비밀코드 입력 화면. 통과하면 True."""
+    if st.session_state.get("authenticated"):
+        return True
+
+    st.markdown(
+        """
+        <div>
+            <div class="cyber-title">🧠 Monster Insight</div>
+            <div class="cyber-sub">AI MEDIA MONSTER HUNTER</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.write("")
+    st.markdown("## 🔐 입장하기")
+    st.caption("학교급을 선택하고, 선생님이 알려주신 비밀코드를 입력하세요.")
+
+    if not supabase_enabled():
+        st.error(
+            "Supabase 연결 정보(SUPABASE_URL / SUPABASE_ANON_KEY)가 설정되지 않아 "
+            "입장 코드를 확인할 수 없습니다. 선생님께 문의하세요."
+        )
+        return False
+
+    level = st.selectbox("학교급", list(LEVELS.keys()), key="gate_level")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        region = st.selectbox("지역", REGIONS, key="gate_region")
+    with c2:
+        grade = st.selectbox("학년", LEVELS[level], key="gate_grade")
+    with c3:
+        gender = st.radio("성별", ["남", "여"], key="gate_gender", horizontal=True)
+
+    code = st.text_input("비밀코드", type="password", key="gate_code")
+
+    if st.button("입장하기", type="primary", key="gate_submit"):
+        valid, row = verify_class_code(level, code)
+        if not valid:
+            st.error("코드가 올바르지 않거나, 만료되었거나, 사용 횟수를 초과했습니다. 선생님께 문의하세요.")
+            return False
+
+        st.session_state.authenticated = True
+        st.session_state.group_label = row["group_label"]
+        st.session_state.student_info = {
+            "level": level, "region": region, "grade": grade, "gender": gender,
+        }
+        log_student_entry(row, level, region, grade, gender)
+        st.rerun()
+
+    return False
+
+
 # ---------------------------------------------------------------------------
 # 세션 상태
 # ---------------------------------------------------------------------------
@@ -524,6 +675,7 @@ def record_result(monster_id: str, success: bool, stars: int):
         {"time": datetime.now(timezone.utc).isoformat(), "monster": monster_id, "success": success, "xp": xp_gain}
     )
 
+    info = ss.get("student_info", {})
     supabase_insert(
         "game_sessions",
         {
@@ -534,6 +686,11 @@ def record_result(monster_id: str, success: bool, stars: int):
             "success": success,
             "xp_gained": xp_gain,
             "stars": stars,
+            "group_label": ss.get("group_label"),
+            "level": info.get("level"),
+            "region": info.get("region"),
+            "grade": info.get("grade"),
+            "gender": info.get("gender"),
             "created_at": datetime.now(timezone.utc).isoformat(),
         },
     )
@@ -1060,15 +1217,16 @@ def page_teacher():
     if not supabase_enabled():
         st.warning(
             "Supabase가 연결되어 있지 않아 전체 학급 통계를 볼 수 없습니다. "
-            "Streamlit Secrets에 SUPABASE_URL과 SUPABASE_KEY를 등록하면 "
+            "Streamlit Secrets에 SUPABASE_URL과 SUPABASE_ANON_KEY를 등록하면 "
             "`game_sessions` 테이블의 기록을 자동으로 집계합니다."
         )
         st.caption(
-            "필요한 테이블 예시(Supabase SQL):\n\n"
+            "필요한 테이블 예시(schema_update.sql 참고):\n\n"
             "create table game_sessions (\n"
             "  id bigint generated always as identity primary key,\n"
             "  student_name text, monster_id text, monster_name text,\n"
             "  category text, success boolean, xp_gained int, stars int,\n"
+            "  group_label text, level text, region text, grade text, gender text,\n"
             "  created_at timestamptz\n"
             ");"
         )
@@ -1083,6 +1241,16 @@ def page_teacher():
     df["success"] = df["success"].astype(bool)
     if "created_at" in df.columns:
         df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
+
+    if "group_label" in df.columns and df["group_label"].notna().any():
+        group_options = ["전체"] + sorted(df["group_label"].dropna().unique().tolist())
+        selected_group = st.selectbox("학교급 그룹 필터", group_options, key="teacher_group_filter")
+        if selected_group != "전체":
+            df = df[df["group_label"] == selected_group]
+
+    if df.empty:
+        st.info("선택한 그룹에 해당하는 기록이 없습니다.")
+        return
 
     total_success = int(df["success"].sum())
 
@@ -1148,6 +1316,9 @@ def page_teacher():
 def main():
     init_state()
     ss = st.session_state
+
+    if not entry_gate():
+        return
 
     with st.sidebar:
         st.markdown("## 🧠 Monster Insight")
